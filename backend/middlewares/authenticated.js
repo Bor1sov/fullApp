@@ -2,16 +2,30 @@ const User = require('../models/User')
 const {verify} = require('../helpers/token')
 
 module.exports = async function (req,res,next){
-    const tokenData = verify(req.cookies.token);
-
-    const user = await User.findOne({_id:tokenData.id});
-
-    if(!user){
-        res.send({error:'Authenticated user not found'})
+    if (!req.cookies.token) {
+        res.status(401).send({error: 'Token not provided'})
         return;
     }
 
-    req.user = user;
+    try {
+        const tokenData = verify(req.cookies.token);
+        const user = await User.findOne({_id:tokenData.id});
 
-    next();
+        if(!user){
+            res.status(401).send({error:'Authenticated user not found'})
+            return;
+        }
+
+        req.user = user;
+        next();
+    } catch (error) {
+
+        if (error.name === 'JsonWebTokenError') {
+            res.status(401).send({error: 'Invalid token'})
+        } else if (error.name === 'TokenExpiredError') {
+            res.status(401).send({error: 'Token expired'})
+        } else {
+            res.status(500).send({error: 'Authentication error'})
+        }
+    }
 }
